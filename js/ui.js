@@ -44,6 +44,13 @@ window.UI = (() => {
       status.textContent = '定位中…';
       coords.textContent = '正在获取 GPS 信号';
 
+      // 在用户手势内预热 speechSynthesis（微信 WebView 需要手势解锁音频）
+      if (window.speechSynthesis) {
+        const warmup = new SpeechSynthesisUtterance('');
+        warmup.volume = 0;
+        window.speechSynthesis.speak(warmup);
+      }
+
       try {
         await Location.requestPermissions();
       } catch (e) {
