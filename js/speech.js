@@ -1,9 +1,7 @@
 // speech.js
 // 策略：
-//   浏览器 / 微信 WebView 均使用 Audio 元素播放腾讯云 TTS mp3
-//   Audio 实例在首次用户手势（点击 GPS 按钮）时解锁
-//   TTS 密钥从 URL 参数 ?sid=&skey= 读取；缺少时降级 SpeechSynthesis（仅普通浏览器）
-//   微信小程序 webview 环境下 SpeechSynthesis 不可靠，不使用
+//   浏览器环境：Audio + 腾讯云TTS，失败降级 SpeechSynthesis
+//   微信 WebView：把文本写入 location.hash，小程序监听 bindload 事件读取并播放
 window.Speech = (() => {
   const _params    = new URLSearchParams(location.search);
   const SECRET_ID  = _params.get('sid')  || '';
@@ -59,12 +57,16 @@ window.Speech = (() => {
     if (_queue.length === 0) { _speaking = false; return; }
     _speaking = true;
     const text = _queue.shift();
-    if (SECRET_ID && SECRET_KEY) {
+    if (_isWechat()) {
+      // 微信 WebView：写入 hash，小程序通过 bindload 监听
+      location.hash = 'tts=' + encodeURIComponent(text) + '&t=' + Date.now();
+      // 微信端播放，不等回调，直接继续队列
+      setTimeout(() => { _speaking = false; _next(); }, 3000);
+    } else if (SECRET_ID && SECRET_KEY) {
       _tts(text);
-    } else if (!_isWechat() && window.speechSynthesis) {
+    } else if (window.speechSynthesis) {
       _synthFallback(text);
     } else {
-      // 无密钥且在微信里，跳过
       _speaking = false;
       _next();
     }
