@@ -52,6 +52,7 @@ window.MapModule = (() => {
 
     L.tileLayer(CONFIG.OSM_TILE_URL, {
       attribution: CONFIG.OSM_ATTRIBUTION,
+      subdomains: ['1', '2', '3', '4'],
       maxZoom: 19,
     }).addTo(map);
 
