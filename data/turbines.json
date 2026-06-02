@@ -1,0 +1,13 @@
+{
+  "turbines": [
+    { "id": "base", "name": "运维中心",    "lat": 28.115088, "lng": 113.019159, "type": "base",  "status": "normal" },
+    { "id": "sub",  "name": "升压站",      "lat": 28.114523, "lng": 113.019315, "type": "subst", "status": "normal" },
+    { "id": "met",  "name": "测风塔",      "lat": 28.114375, "lng": 113.019326, "type": "met",   "status": "normal" },
+    { "id": "wt01", "name": "WTG-01 风机", "lat": 28.113959, "lng": 113.019993, "type": "wind",  "status": "normal" },
+    { "id": "wt02", "name": "WTG-02 风机", "lat": 28.113926, "lng": 113.020502, "type": "wind",  "status": "normal" },
+    { "id": "wt03", "name": "WTG-03 风机", "lat": 28.113930, "lng": 113.021013, "type": "wind",  "status": "warn"   },
+    { "id": "wt04", "name": "WTG-04 风机", "lat": 28.113959, "lng": 113.021528, "type": "wind",  "status": "normal" },
+    { "id": "wt05", "name": "WTG-05 风机", "lat": 28.113971, "lng": 113.021867, "type": "wind",  "status": "normal" },
+    { "id": "wt06", "name": "WTG-06 风机", "lat": 28.115246, "lng": 113.019246, "type": "wind",  "status": "normal" }
+  ]
+}
