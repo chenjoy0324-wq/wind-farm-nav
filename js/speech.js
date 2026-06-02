@@ -1,7 +1,6 @@
 // speech.js
-// 策略：
-//   浏览器环境：Audio + 腾讯云TTS，失败降级 SpeechSynthesis
-//   微信 WebView：把文本写入 location.hash，小程序监听 bindload 事件读取并播放
+// 浏览器环境：腾讯云 TTS（密钥从 URL 参数读取），失败降级 SpeechSynthesis
+// 微信 WebView：直接用 SpeechSynthesis（需用户手势解锁）
 window.Speech = (() => {
   const _params    = new URLSearchParams(location.search);
   const SECRET_ID  = _params.get('sid')  || '';
@@ -20,27 +19,23 @@ window.Speech = (() => {
   let   _audio      = null;
   let   _unlocked   = false;
 
-  // 判断是否在微信 WebView（包含小程序 webview）
-  function _isWechat() {
-    return /micromessenger/i.test(navigator.userAgent);
-  }
-
-  // 首次用户手势时调用，解锁 Audio 自动播放限制
+  // GPS 按钮点击时调用，在用户手势内解锁音频播放
   function unlock() {
     if (_unlocked) return;
-    _audio = new Audio();
-    // 播放一段无声音频来解锁
-    _audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
-    _audio.play().then(() => {
-      _unlocked = true;
-      _audio.onended = () => { _speaking = false; _next(); };
-      _audio.onerror = () => { _speaking = false; _next(); };
-    }).catch(() => {
-      // 解锁失败不影响后续，继续尝试
-      _unlocked = true;
-      _audio.onended = () => { _speaking = false; _next(); };
-      _audio.onerror = () => { _speaking = false; _next(); };
-    });
+    _unlocked = true;
+    // 解锁 Audio 元素
+    if (!_audio) _audio = new Audio();
+    const silentSrc = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+    _audio.src = silentSrc;
+    _audio.play().catch(() => {});
+    // 解锁 SpeechSynthesis
+    if (window.speechSynthesis) {
+      const w = new SpeechSynthesisUtterance('');
+      w.volume = 0;
+      window.speechSynthesis.speak(w);
+    }
+    _audio.onended = () => { _speaking = false; _next(); };
+    _audio.onerror = () => { _speaking = false; _next(); };
   }
 
   function speak(text, dedupeKey) {
@@ -57,18 +52,10 @@ window.Speech = (() => {
     if (_queue.length === 0) { _speaking = false; return; }
     _speaking = true;
     const text = _queue.shift();
-    if (_isWechat()) {
-      // 微信 WebView：写入 hash，小程序通过 bindload 监听
-      location.hash = 'tts=' + encodeURIComponent(text) + '&t=' + Date.now();
-      // 微信端播放，不等回调，直接继续队列
-      setTimeout(() => { _speaking = false; _next(); }, 3000);
-    } else if (SECRET_ID && SECRET_KEY) {
+    if (SECRET_ID && SECRET_KEY) {
       _tts(text);
-    } else if (window.speechSynthesis) {
-      _synthFallback(text);
     } else {
-      _speaking = false;
-      _next();
+      _synthFallback(text);
     }
   }
 
@@ -85,10 +72,10 @@ window.Speech = (() => {
     const hashedPayload    = uint8ArrayToHex(sha256(payload));
     const canonicalHeaders = `content-type:application/json\nhost:${TTS_HOST}\n`;
     const signedHeaders    = 'content-type;host';
-    const canonicalRequest = ['POST','/','' , canonicalHeaders, signedHeaders, hashedPayload].join('\n');
+    const canonicalRequest = ['POST','/','' ,canonicalHeaders,signedHeaders,hashedPayload].join('\n');
     const credentialScope  = `${date}/${TTS_SERVICE}/tc3_request`;
     const hashedCanonical  = uint8ArrayToHex(sha256(canonicalRequest));
-    const stringToSign     = ['TC3-HMAC-SHA256', timestamp, credentialScope, hashedCanonical].join('\n');
+    const stringToSign     = ['TC3-HMAC-SHA256',timestamp,credentialScope,hashedCanonical].join('\n');
     const secretDate       = hmacSha256('TC3' + SECRET_KEY, date);
     const secretSvc        = hmacSha256(secretDate, TTS_SERVICE);
     const secretSigning    = hmacSha256(secretSvc, 'tc3_request');
@@ -98,56 +85,37 @@ window.Speech = (() => {
     fetch(`https://${TTS_HOST}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Host': TTS_HOST,
-        'X-TC-Action': TTS_ACTION,
-        'X-TC-Version': TTS_VERSION,
-        'X-TC-Timestamp': String(timestamp),
-        'X-TC-Region': TTS_REGION,
-        'Authorization': authorization,
+        'Content-Type':'application/json','Host':TTS_HOST,
+        'X-TC-Action':TTS_ACTION,'X-TC-Version':TTS_VERSION,
+        'X-TC-Timestamp':String(timestamp),'X-TC-Region':TTS_REGION,
+        'Authorization':authorization,
       },
       body: payload,
     })
       .then(r => r.json())
       .then(body => {
         if (body && body.Response && body.Response.Audio) {
-          _playBase64(body.Response.Audio, text);
+          if (!_audio) _audio = new Audio();
+          _audio.onended = () => { _speaking = false; _next(); };
+          _audio.onerror = () => { _speaking = false; _next(); };
+          _audio.src = 'data:audio/mp3;base64,' + body.Response.Audio;
+          _audio.play().catch(() => _synthFallback(text));
         } else {
-          console.warn('[Speech] TTS错误:', JSON.stringify(body));
           _synthFallback(text);
         }
       })
-      .catch(err => {
-        console.warn('[Speech] TTS请求失败:', err);
-        _synthFallback(text);
-      });
-  }
-
-  function _playBase64(base64, text) {
-    const src = 'data:audio/mp3;base64,' + base64;
-    if (_audio) {
-      _audio.src = src;
-      _audio.play().catch(() => _synthFallback(text));
-    } else {
-      // Audio 未解锁时创建新实例播放
-      const a = new Audio(src);
-      a.onended = () => { _speaking = false; _next(); };
-      a.onerror = () => { _speaking = false; _next(); };
-      a.play().catch(() => _synthFallback(text));
-    }
+      .catch(() => _synthFallback(text));
   }
 
   function _synthFallback(text) {
-    if (_isWechat() || !window.speechSynthesis) {
-      _speaking = false; _next(); return;
-    }
+    if (!window.speechSynthesis) { _speaking = false; _next(); return; }
     window.speechSynthesis.cancel();
     setTimeout(() => {
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = 'zh-CN';
       utter.rate = 1.0;
       utter.volume = 1.0;
-      utter.onend  = () => { _speaking = false; _next(); };
+      utter.onend   = () => { _speaking = false; _next(); };
       utter.onerror = () => { _speaking = false; _next(); };
       window.speechSynthesis.speak(utter);
     }, 50);
