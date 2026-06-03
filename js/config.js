@@ -31,10 +31,10 @@ window.wgs84ToGcj02 = function(lat, lng) {
 
 window.CONFIG = {
   ARRIVAL_THRESHOLD_METERS: 50,
-  MAP_DEFAULT_CENTER: wgs84ToGcj02(28.1145, 113.0205),
+  MAP_DEFAULT_CENTER: [28.1145, 113.0205],
   MAP_DEFAULT_ZOOM: 16,
-  OSM_TILE_URL: 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
-  OSM_ATTRIBUTION: '© 高德地图',
+  OSM_TILE_URL: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  OSM_ATTRIBUTION: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   TYPE_CONFIG: {
     wind:  { color: '#2ea043', bg: 'rgba(46,160,67,0.15)',   emoji: '💨' },
     subst: { color: '#1f6feb', bg: 'rgba(31,111,235,0.15)', emoji: '⚡' },
