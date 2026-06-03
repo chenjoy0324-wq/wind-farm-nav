@@ -52,7 +52,7 @@ window.MapModule = (() => {
 
     L.tileLayer(CONFIG.OSM_TILE_URL, {
       attribution: CONFIG.OSM_ATTRIBUTION,
-      subdomains: ['a', 'b', 'c'],
+      subdomains: ['1', '2', '3', '4'],
       maxZoom: 19,
     }).addTo(map);
 
@@ -64,7 +64,8 @@ window.MapModule = (() => {
     fetch('data/track.json')
       .then((r) => r.json())
       .then(({ track }) => {
-        L.polyline(track, {
+        const gcjTrack = track.map(([lat, lng]) => wgs84ToGcj02(lat, lng));
+        L.polyline(gcjTrack, {
           color: '#4fc3f7', weight: 3, opacity: 0.7, dashArray: '6,4',
         }).addTo(map);
       })
@@ -77,7 +78,8 @@ window.MapModule = (() => {
       .then(({ turbines }) => {
         turbines.forEach((t) => {
           const warn = t.status === 'warn';
-          const marker = L.marker([t.lat, t.lng], { icon: _makeDevIcon(t.type, t.status, false) })
+          const [gcjLat, gcjLng] = wgs84ToGcj02(t.lat, t.lng);
+          const marker = L.marker([gcjLat, gcjLng], { icon: _makeDevIcon(t.type, t.status, false) })
             .bindPopup(`
               <div class="popup-name">${t.name}</div>
               <div class="popup-coords">${t.lat.toFixed(5)}, ${t.lng.toFixed(5)}</div>
@@ -122,7 +124,7 @@ window.MapModule = (() => {
   }
 
   function updateUserPosition(lat, lng) {
-    const latlng = [lat, lng];
+    const latlng = wgs84ToGcj02(lat, lng);
     if (!userMarker) {
       userMarker = L.marker(latlng, { icon: _makeUserIcon() }).addTo(map);
     } else {
@@ -139,7 +141,8 @@ window.MapModule = (() => {
     if (!segments || !segments.length || roadNetworkDrawn) return;
     roadNetworkDrawn = true;
     segments.forEach((seg) => {
-      L.polyline(seg.via, {
+      const gcjVia = seg.via.map(([lat, lng]) => wgs84ToGcj02(lat, lng));
+      L.polyline(gcjVia, {
         color: 'rgba(180,180,180,0.35)', weight: 2.5, dashArray: '4,4',
       }).addTo(map);
     });
@@ -147,7 +150,8 @@ window.MapModule = (() => {
 
   function drawRoute(latlngs) {
     if (routeLayer) { routeLayer.remove(); routeLayer = null; }
-    routeLayer = L.polyline(latlngs, {
+    const gcjCoords = latlngs.map(([lat, lng]) => wgs84ToGcj02(lat, lng));
+    routeLayer = L.polyline(gcjCoords, {
       color: '#1abc9c', weight: 6, opacity: 0.9,
       dashArray: '12,5', lineCap: 'round', lineJoin: 'round',
     }).addTo(map);
@@ -161,7 +165,8 @@ window.MapModule = (() => {
 
   function showDestMarker(turbine) {
     if (destMarker) { destMarker.remove(); destMarker = null; }
-    destMarker = L.marker([turbine.lat, turbine.lng], {
+    const [gcjLat, gcjLng] = wgs84ToGcj02(turbine.lat, turbine.lng);
+    destMarker = L.marker([gcjLat, gcjLng], {
       icon: _makeDevIcon(turbine.type, turbine.status, true),
     }).addTo(map)
       .bindPopup(`<div class="popup-name">🎯 目的地：${turbine.name}</div>`)
@@ -169,7 +174,8 @@ window.MapModule = (() => {
   }
 
   function panTo(lat, lng, zoom) {
-    map.setView([lat, lng], zoom || map.getZoom());
+    const [gcjLat, gcjLng] = wgs84ToGcj02(lat, lng);
+    map.setView([gcjLat, gcjLng], zoom || map.getZoom());
   }
 
   function openMarkerPopup(turbineId) {
